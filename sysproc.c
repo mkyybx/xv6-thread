@@ -89,3 +89,16 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+extern int clone(void *stack, int size);
+int
+sys_clone(void)
+{
+    void* stack;
+    int size;
+    if (argint(1, &size) < 0)
+      return -1;
+    if (argint(0, (int*)&stack) < 0)
+      return -1;
+    return clone(stack, size);
+}

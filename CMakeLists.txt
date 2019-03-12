@@ -1,0 +1,83 @@
+cmake_minimum_required(VERSION 3.13)
+project(xv6_public)
+
+set(CMAKE_CXX_STANDARD 14)
+
+include_directories(.)
+
+add_executable(xv6_public
+        asm.h
+        bio.c
+        bootasm.S
+        bootmain.c
+        buf.h
+        cat.c
+        console.c
+        date.h
+        defs.h
+        echo.c
+        elf.h
+        entry.S
+        entryother.S
+        exec.c
+        fcntl.h
+        file.c
+        file.h
+        forktest.c
+        fs.c
+        fs.h
+        grep.c
+        ide.c
+        init.c
+        initcode.S
+        ioapic.c
+        kalloc.c
+        kbd.c
+        kbd.h
+        kill.c
+        lapic.c
+        ln.c
+        log.c
+        ls.c
+        main.c
+        memide.c
+        memlayout.h
+        mkdir.c
+        mkfs.c
+        mmu.h
+        mp.c
+        mp.h
+        param.h
+        picirq.c
+        pipe.c
+        printf.c
+        proc.c
+        proc.h
+        rm.c
+        sh.c
+        sleeplock.c
+        sleeplock.h
+        spinlock.c
+        spinlock.h
+        stat.h
+        stressfs.c
+        string.c
+        swtch.S
+        syscall.c
+        syscall.h
+        sysfile.c
+        sysproc.c
+        trap.c
+        trapasm.S
+        traps.h
+        types.h
+        uart.c
+        ulib.c
+        umalloc.c
+        user.h
+        usertests.c
+        usys.S
+        vm.c
+        wc.c
+        x86.h
+        zombie.c thread_test.c)
