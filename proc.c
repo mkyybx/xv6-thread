@@ -316,6 +316,7 @@ exit(void)
         wakeup1(initproc);
     }
   }
+
   if (isOnlyThread) {
     for (fd = 0; fd < NOFILE; fd++) {
       if (curproc->ofile[fd]) {
@@ -323,7 +324,7 @@ exit(void)
         curproc->ofile[fd] = 0;
       }
     }
-    freevm(curproc->pgdir);
+    curproc->threadNo = -1;
   }
 
   // Jump into the scheduler, never to return.
