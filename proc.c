@@ -249,8 +249,8 @@ clone(void *stack, int size)
     np->sz = curproc->sz;
     np->parent = curproc->parent;
     *np->tf = *curproc->tf;
-    np->tf->ebp = (uint) (stack + size);
-    np->tf->esp = (uint) (stack + size);
+    np->tf->ebp = (uint) (stack + size - 1);
+    np->tf->esp = (uint) (stack + size - 12);
 
     // Clear %eax so that fork returns 0 in the child.
     np->tf->eax = 0;
@@ -308,8 +308,9 @@ exit(void)
   int isOnlyThread = 1;
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if (p->state != ZOMBIE && p->state != UNUSED && isOnlyThread && curproc->threadNo != -1 && p->threadNo == curproc->threadNo)
-      isOnlyThread = 0;
+    if (p->state != ZOMBIE && p->state != UNUSED && isOnlyThread && curproc->threadNo != -1 && p->threadNo == curproc->threadNo && p != curproc) {
+        isOnlyThread = 0;
+    }
     if(p->parent == curproc){
       p->parent = initproc;
       if(p->state == ZOMBIE)
@@ -317,7 +318,7 @@ exit(void)
     }
   }
 
-  if (isOnlyThread) {
+  if (isOnlyThread && curproc->threadNo != -1) {
     for (fd = 0; fd < NOFILE; fd++) {
       if (curproc->ofile[fd]) {
         fileclose(curproc->ofile[fd]);
@@ -341,7 +342,7 @@ wait(void)
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
-  
+  cprintf("pid=%d,wait started\n", curproc->pid);
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for exited children.
@@ -363,6 +364,7 @@ wait(void)
         p->killed = 0;
         p->state = UNUSED;
         release(&ptable.lock);
+        cprintf("pid=%d,wait ended\n", curproc->pid);
         return pid;
       }
     }
@@ -370,6 +372,7 @@ wait(void)
     // No point waiting if we don't have any children.
     if(!havekids || curproc->killed){
       release(&ptable.lock);
+      cprintf("pid=%d,wait ended\n", curproc->pid);
       return -1;
     }
 

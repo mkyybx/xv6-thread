@@ -7,6 +7,7 @@
 #include "mmu.h"
 #include "x86.h"
 
+
 #define MAX_ANDERSON_QUEUE_LEN 50
 #define ANDERSON_LOCK_MUST_WAIT 0
 #define ANDERSON_LOCK_AVAILABLE 1
@@ -26,26 +27,29 @@ typedef struct {
     anderson_lock_t lock;
 } seqlock_t;
 
+void asm_code(void *(*start_routine)(void*), void *arg) {
+    asm volatile ("push %0;\n" : : "r" (arg));
+    asm volatile ("push %0;\n" : : "r" (exit));
+    asm volatile ("call %0;\n" : : "r" (start_routine));
+    asm volatile ("pop %eax;\n");
+}
+
 void thread_create(void *(*start_routine)(void*), void *arg) {
     char* stack = malloc(PGSIZE);
-    void* exit_ptr = exit;
-    if (clone(stack, PGSIZE) == 0) {
-        asm volatile ("push %0;\n" : : "r" (arg));
-        asm volatile ("push %0;\n" : : "r" (exit_ptr));
-        asm volatile ("call %0;\n" : : "r" (start_routine));
-        asm volatile ("pop %eax;\n");
-    }
+    *(uint*)(stack + PGSIZE - 4) = (uint)arg;
+    *(uint*)(stack + PGSIZE - 8) = (uint)exit;
+    *(uint*)(stack + PGSIZE - 12) = (uint)start_routine;
+    clone(stack, PGSIZE);
 }
 
 void lock_acquire(lock_t* lock) {
-    if (lock->locked)
-        return;
     while(xchg(&lock->locked, 1) != 0);
     __sync_synchronize();
 }
 
 void lock_release(lock_t* lock) {
-    lock->locked = 0;
+    __sync_synchronize();
+    asm volatile("movl $0, %0" : "+m" (lock->locked) : );
 }
 
 //lock should be allocated before invoking
@@ -55,13 +59,17 @@ void lock_init(lock_t* lock) {
 
 void anderson_lock_acquire(anderson_lock_t* lock) {
     uint my_pos = fetch_and_add(&(lock->queueing_pos), 1);
-    while (lock->queue[my_pos % MAX_ANDERSON_QUEUE_LEN] == ANDERSON_LOCK_MUST_WAIT);
+    my_pos++;
+    while (lock->queue[my_pos % MAX_ANDERSON_QUEUE_LEN] == ANDERSON_LOCK_MUST_WAIT) {
+       // printf(2, "queue[%d]=%d\n", my_pos % MAX_ANDERSON_QUEUE_LEN, lock->queue[my_pos % MAX_ANDERSON_QUEUE_LEN]);
+    }
     lock->holding_pos = my_pos;
 }
 
 void anderson_lock_release(anderson_lock_t* lock) {
     lock->queue[lock->holding_pos % MAX_ANDERSON_QUEUE_LEN] = ANDERSON_LOCK_MUST_WAIT;
     lock->queue[(lock->holding_pos + 1) % MAX_ANDERSON_QUEUE_LEN] = ANDERSON_LOCK_AVAILABLE;
+    //printf(2, "que[%d]=%d\n", (lock->holding_pos + 1) % MAX_ANDERSON_QUEUE_LEN, lock->queue[(lock->holding_pos + 1) % MAX_ANDERSON_QUEUE_LEN]);
 }
 
 //lock should be allocated before invoking
@@ -91,31 +99,64 @@ void seqlock_init(seqlock_t* lock) {
     lock->counter = 0;
 }
 
-lock_t frisbee;
+lock_t frisbee_spin;
+anderson_lock_t frisbee_anderson;
 int cur_passes;
 int passes;
 int threads;
+int time_printed;
 
-void* sub_func(void* id) {
+void* spin_sub_func(void* id) {
+    int ticks = uptime();
     while (cur_passes < passes) {
-        lock_acquire(&frisbee);
-        if (cur_passes % threads == (int)id)
-            printf(2, "Pass number no: %d, Thread %d is passing the token to thread %d\n", cur_passes++, id, id + 1);
-        lock_release(&frisbee);
+        lock_acquire(&frisbee_spin);
+        if (cur_passes < passes && cur_passes % threads == (int) id)
+            printf(2, "%d:%d->%d\n", cur_passes++, id, (int) (id + 1) % threads);
+        lock_release(&frisbee_spin);
     }
-    return 0;
+    if (!time_printed) {
+        printf(2, "time elapsed:%d\n", uptime() - ticks);
+        time_printed = 1;
+    }
+    exit();
+}
+
+void* anderson_sub_func(void* id) {
+    int ticks = uptime();
+    while (cur_passes < passes) {
+        anderson_lock_acquire(&frisbee_anderson);
+        if (cur_passes < passes && cur_passes % threads == (int)id)
+            printf(2, "Pass number no: %d, Thread %d is passing the token to thread %d\n", cur_passes++, id, id + 1);
+        anderson_lock_release(&frisbee_anderson);
+    }
+    if (!time_printed) {
+        printf(2, "time elapsed:%d\n", uptime() - ticks);
+        time_printed = 1;
+    }
+    exit();
 }
 
 int main(int argc, char** argv) {
-    if (argc != 3) {
-        printf(2, "usage %s threads passes\n", argv[0]);
+    if (argc != 4) {
+        printf(2, "usage %s threads passes methods(1.spin 2.anderson)\n", argv[0]);
         exit();
     }
     threads = atoi(argv[1]);
     passes = atoi(argv[2]);
+    int methods = atoi(argv[3]);
     cur_passes = 0;
-    lock_init(&frisbee);
-    for (int i = 0; i < threads; i++)
-        thread_create(sub_func, (void*)i);
+
+    if (methods == 1) {
+        lock_init(&frisbee_spin);
+        for (int i = 0; i < threads; i++)
+            thread_create(spin_sub_func, (void *) i);
+    }
+    else if (methods == 2) {
+        anderson_lock_init_and_acquire(&frisbee_anderson);
+        anderson_lock_release(&frisbee_anderson);
+        for (int i = 0; i < threads; i++)
+            thread_create(anderson_sub_func, (void *) i);
+    }
+    wait();
     exit();
 }
