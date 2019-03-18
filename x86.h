@@ -181,7 +181,7 @@ struct trapframe {
   ushort ss;
   ushort padding6;
 };
-
+//cs202 start
 static inline uint fetch_and_add(uint* variable, uint value)
 {
     __asm__ volatile("lock; xaddl %0, %1"
@@ -191,3 +191,4 @@ static inline uint fetch_and_add(uint* variable, uint value)
     );
     return value;
 }
+//cs202 end

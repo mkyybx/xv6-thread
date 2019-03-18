@@ -89,7 +89,7 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
-
+//cs202 start
 extern int clone(void *stack, int size);
 int
 sys_clone(void)
@@ -102,3 +102,4 @@ sys_clone(void)
       return -1;
     return clone(stack, size);
 }
+//cs202 end

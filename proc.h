@@ -48,8 +48,8 @@ struct proc {
   int killed;                  // If non-zero, have been killed
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
-  int threadNo;                // Process = -1;
-  void* threadStack;           // Stack pointer
+  int threadNo;                // Process = -1;//cs202
+  void* threadStack;           // Stack pointer//cs202
   char name[16];               // Process name (debugging)
 };
 

@@ -88,7 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-  p->threadNo = -1;
+  p->threadNo = -1;//cs202
 
   release(&ptable.lock);
 
@@ -200,7 +200,7 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
-  np->threadStack = 0;
+  np->threadStack = 0;//cs202
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -209,7 +209,7 @@ fork(void)
     if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
   np->cwd = idup(curproc->cwd);
-
+//cs202 start
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
@@ -258,7 +258,7 @@ clone(void *stack, int size)
     for(i = 0; i < NOFILE; i++)
         np->ofile[i] = curproc->ofile[i];
     np->cwd = idup(curproc->cwd);
-
+//cs202 end
     safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
     pid = np->pid;
@@ -286,12 +286,12 @@ exit(void)
     panic("init exiting");
 
   // Close all open files.
-  if (curproc->threadNo == -1) {
+  if (curproc->threadNo == -1) {//cs202
     for (fd = 0; fd < NOFILE; fd++) {
       if (curproc->ofile[fd]) {
         fileclose(curproc->ofile[fd]);
         curproc->ofile[fd] = 0;
-      }
+      }//cs202
     }
   }
 
@@ -305,12 +305,12 @@ exit(void)
   // Parent might be sleeping in wait().
   wakeup1(curproc->parent);
 
-  int isOnlyThread = 1;
+  int isOnlyThread = 1;//cs202
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if (p->state != ZOMBIE && p->state != UNUSED && isOnlyThread && curproc->threadNo != -1 && p->threadNo == curproc->threadNo && p != curproc) {
-        isOnlyThread = 0;
-    }
+    if (p->state != ZOMBIE && p->state != UNUSED && isOnlyThread && curproc->threadNo != -1 && p->threadNo == curproc->threadNo && p != curproc) {//cs202
+        isOnlyThread = 0;//cs202
+    }//cs202
     if(p->parent == curproc){
       p->parent = initproc;
       if(p->state == ZOMBIE)
@@ -318,15 +318,15 @@ exit(void)
     }
   }
 
-  if (isOnlyThread && curproc->threadNo != -1) {
-    for (fd = 0; fd < NOFILE; fd++) {
-      if (curproc->ofile[fd]) {
-        fileclose(curproc->ofile[fd]);
-        curproc->ofile[fd] = 0;
-      }
-    }
-    curproc->threadNo = -1;
-  }
+  if (isOnlyThread && curproc->threadNo != -1) {//cs202
+    for (fd = 0; fd < NOFILE; fd++) {//cs202
+      if (curproc->ofile[fd]) {//cs202
+        fileclose(curproc->ofile[fd]);//cs202
+        curproc->ofile[fd] = 0;//cs202
+      }//cs202
+    }//cs202
+    curproc->threadNo = -1;//cs202
+  }//cs202
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
@@ -355,8 +355,8 @@ wait(void)
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
-        if (p->threadNo == -1)
-          freevm(p->pgdir);
+        if (p->threadNo == -1)//cs202
+          freevm(p->pgdir);//cs202
         p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
