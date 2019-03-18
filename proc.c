@@ -247,7 +247,7 @@ clone(void *stack, int size)
     np->threadNo = curproc->threadNo;
     np->pgdir = curproc->pgdir;
     np->sz = curproc->sz;
-    np->parent = curproc->parent;
+    np->parent = curproc;
     *np->tf = *curproc->tf;
     np->tf->ebp = (uint) (stack + size - 1);
     np->tf->esp = (uint) (stack + size - 12);
@@ -257,7 +257,7 @@ clone(void *stack, int size)
 
     for(i = 0; i < NOFILE; i++)
         np->ofile[i] = curproc->ofile[i];
-    np->cwd = curproc->cwd;
+    np->cwd = idup(curproc->cwd);
 
     safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
@@ -342,7 +342,6 @@ wait(void)
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
-  cprintf("pid=%d,wait started\n", curproc->pid);
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for exited children.
@@ -364,7 +363,6 @@ wait(void)
         p->killed = 0;
         p->state = UNUSED;
         release(&ptable.lock);
-        cprintf("pid=%d,wait ended\n", curproc->pid);
         return pid;
       }
     }
@@ -372,7 +370,6 @@ wait(void)
     // No point waiting if we don't have any children.
     if(!havekids || curproc->killed){
       release(&ptable.lock);
-      cprintf("pid=%d,wait ended\n", curproc->pid);
       return -1;
     }
 

@@ -97,10 +97,14 @@ void seqlock_write_release(seqlock_t* lock) {
 //lock should be allocated before invoking
 void seqlock_init(seqlock_t* lock) {
     lock->counter = 0;
+    anderson_lock_init_and_acquire(&(lock->lock));
+    anderson_lock_release(&(lock->lock));
 }
 
 lock_t frisbee_spin;
 anderson_lock_t frisbee_anderson;
+seqlock_t frisbee_seqlock;
+anderson_lock_t time_lock;
 int cur_passes;
 int passes;
 int threads;
@@ -110,13 +114,16 @@ void* spin_sub_func(void* id) {
     int ticks = uptime();
     while (cur_passes < passes) {
         lock_acquire(&frisbee_spin);
-        if (cur_passes < passes && cur_passes % threads == (int) id)
-            printf(2, "%d:%d->%d\n", cur_passes++, id, (int) (id + 1) % threads);
+        if (cur_passes % threads == (int) id && cur_passes < passes)
+            printf(2, "Pass number no: %d, Thread %d is passing the token to thread %d\n", cur_passes++, id, id + 1);
         lock_release(&frisbee_spin);
     }
     if (!time_printed) {
-        printf(2, "time elapsed:%d\n", uptime() - ticks);
+        anderson_lock_acquire(&time_lock);
+        if (!time_printed)
+            printf(2, "time elapsed:%d\n", uptime() - ticks);
         time_printed = 1;
+        anderson_lock_release(&time_lock);
     }
     exit();
 }
@@ -125,27 +132,51 @@ void* anderson_sub_func(void* id) {
     int ticks = uptime();
     while (cur_passes < passes) {
         anderson_lock_acquire(&frisbee_anderson);
-        if (cur_passes < passes && cur_passes % threads == (int)id)
+        if (cur_passes % threads == (int)id && cur_passes < passes)
             printf(2, "Pass number no: %d, Thread %d is passing the token to thread %d\n", cur_passes++, id, id + 1);
         anderson_lock_release(&frisbee_anderson);
     }
     if (!time_printed) {
-        printf(2, "time elapsed:%d\n", uptime() - ticks);
+        anderson_lock_acquire(&time_lock);
+        if (!time_printed)
+            printf(2, "time elapsed:%d\n", uptime() - ticks);
         time_printed = 1;
+        anderson_lock_release(&time_lock);
+    }
+    exit();
+}
+
+void* seqlock_sub_func(void* id) {
+    int ticks = uptime();
+    while (cur_passes < passes) {
+        if (cur_passes % threads == (int)id && ((seqlock_read_check(&frisbee_seqlock) & 1) == 0)) {
+            seqlock_write_acquire(&frisbee_seqlock);
+            if (cur_passes % threads == (int)id && cur_passes < passes)
+                printf(2, "Pass number no: %d, Thread %d is passing the token to thread %d\n", cur_passes++, id, id + 1);
+            seqlock_write_release(&frisbee_seqlock);
+        }
+    }
+    if (!time_printed) {
+        anderson_lock_acquire(&time_lock);
+        if (!time_printed)
+            printf(2, "time elapsed:%d\n", uptime() - ticks);
+        time_printed = 1;
+        anderson_lock_release(&time_lock);
     }
     exit();
 }
 
 int main(int argc, char** argv) {
     if (argc != 4) {
-        printf(2, "usage %s threads passes methods(1.spin 2.anderson)\n", argv[0]);
+        printf(2, "usage %s threads passes methods\n(1.spin 2.anderson 3.seqlock)\n", argv[0]);
         exit();
     }
     threads = atoi(argv[1]);
     passes = atoi(argv[2]);
     int methods = atoi(argv[3]);
     cur_passes = 0;
-
+    anderson_lock_init_and_acquire(&time_lock);
+    anderson_lock_release(&time_lock);
     if (methods == 1) {
         lock_init(&frisbee_spin);
         for (int i = 0; i < threads; i++)
@@ -157,6 +188,12 @@ int main(int argc, char** argv) {
         for (int i = 0; i < threads; i++)
             thread_create(anderson_sub_func, (void *) i);
     }
-    wait();
+    else if (methods == 3) {
+        seqlock_init(&frisbee_seqlock);
+        for (int i = 0; i < threads; i++)
+            thread_create(seqlock_sub_func, (void *) i);
+    }
+    for (int i = 0; i < threads; i++)
+        wait( );
     exit();
 }
